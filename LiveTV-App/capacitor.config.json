@@ -1,0 +1,16 @@
+{
+  "appId": "com.digikarigar.livetv",
+  "appName": "Live TV",
+  "webDir": "www",
+  "backgroundColor": "#0e1b2a",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true }
+  }
+}
