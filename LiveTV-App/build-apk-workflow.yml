@@ -1,2 +1,65 @@
-# Put this text inside GitHub: .github/workflows/build-apk.yml (create it from the Actions tab)
-# Use the latest version I sent in chat (with the ImageMagick icon step).
+name: Build APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find project folder
+        run: |
+          DIR=$(dirname "$(find . -name package.json -not -path '*/node_modules/*' | head -1)")
+          echo "APP_DIR=$DIR" >> $GITHUB_ENV
+          echo "Project folder: $DIR"
+          ls -la "$DIR" "$DIR/www" "$DIR/assets"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install packages
+        working-directory: ${{ env.APP_DIR }}
+        run: npm install
+
+      - name: Add Android
+        working-directory: ${{ env.APP_DIR }}
+        run: npx cap add android
+
+      - name: Set app icon and splash
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y imagemagick
+          SRC=assets/icon-only.png
+          RES=android/app/src/main/res
+          rm -rf $RES/mipmap-anydpi-v26
+          for pair in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            d=${pair%%:*}; s=${pair##*:}
+            for n in ic_launcher ic_launcher_round ic_launcher_foreground; do
+              convert $SRC -resize ${s}x${s} $RES/mipmap-$d/$n.png
+            done
+          done
+          convert -size 2732x2732 xc:'#0e1b2a' \( $SRC -resize 700x700 \) -gravity center -composite /tmp/splash.png
+          for f in $(find $RES -name 'splash.png'); do cp /tmp/splash.png "$f"; done
+
+      - name: Sync
+        working-directory: ${{ env.APP_DIR }}
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: ${{ env.APP_DIR }}/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiveTV-apk
+          path: ${{ env.APP_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
